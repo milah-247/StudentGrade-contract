@@ -2,18 +2,23 @@ name: CI
 
 on:
   push:
+    branches: [main]
   pull_request:
   workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 env:
   FOUNDRY_PROFILE: ci
 
 jobs:
-  check:
-    strategy:
-      fail-fast: true
-
-    name: Foundry project
+  test:
+    name: Format, build and test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -22,22 +27,41 @@ jobs:
 
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: stable
 
       - name: Show Forge version
-        run: |
-          forge --version
+        run: forge --version
 
-      - name: Run Forge fmt
-        run: |
-          forge fmt --check
-        id: fmt
+      - name: Check formatting
+        run: forge fmt --check
 
-      - name: Run Forge build
-        run: |
-          forge build --sizes
-        id: build
+      - name: Build
+        run: forge build --sizes
 
-      - name: Run Forge tests
-        run: |
-          forge test -vvv
-        id: test
+      - name: Test
+        run: forge test -vvv
+
+  slither:
+    name: Static analysis (Slither)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: stable
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Slither
+        run: pip install slither-analyzer==0.10.4
+
+      - name: Run Slither
+        # Fails the job on medium or high severity findings in src/.
+        run: slither . --filter-paths "lib/|test/" --fail-medium

@@ -12,3 +12,10 @@ docs/
 
 # Dotenv file
 .env
+
+# Coverage output
+lcov.info
+coverage/
+
+# Python virtualenv (Slither)
+.venv/
