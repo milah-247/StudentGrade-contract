@@ -1,5 +1,9 @@
 # StudentGrade-contract
 
+[![CI](https://github.com/milah-247/StudentGrade-contract/actions/workflows/test.yml/badge.svg)](https://github.com/milah-247/StudentGrade-contract/actions/workflows/test.yml)
+![Solidity](https://img.shields.io/badge/Solidity-0.8.28-363636)
+![Built with Foundry](https://img.shields.io/badge/built%20with-Foundry-FFDB1C)
+
 A small Solidity smart contract for recording student scores, built and tested with [Foundry](https://book.getfoundry.sh/).
 
 One admin account registers students and sets their scores (0–100). Each student can read their own record. The admin can hand over the role to another account in two steps.
@@ -33,7 +37,24 @@ Source: [`src/StudentGrades.sol`](src/StudentGrades.sol)
 
 Errors are custom errors (for example `NotAdmin()`, `InvalidScore(uint256)` and `StudentNotFound(address)`), defined at the top of the contract.
 
-Events: `StudentAdded(student)`, `ScoreUpdated(student)`, `AdminTransferStarted(current, pending)` and `AdminTransferred(previous, new)`. Events leave out names and scores on purpose.
+Events: `StudentAdded(student)`, `ScoreUpdated(student)`, `AdminTransferStarted(currentAdmin, nominee)` and `AdminTransferred(previousAdmin, newAdmin)`. Events leave out names and scores on purpose.
+
+### Admin handover
+
+The admin role moves in two steps, so a mistyped address can't lock the contract:
+
+```mermaid
+sequenceDiagram
+    participant A as Current admin
+    participant C as StudentGrades
+    participant N as Nominee
+    A->>C: transferAdmin(nominee)
+    Note over C: pendingAdmin = nominee<br/>admin unchanged
+    N->>C: acceptAdmin()
+    Note over C: admin = nominee<br/>pendingAdmin = 0
+```
+
+Until `acceptAdmin` is called, the old admin keeps full rights and the nominee has none.
 
 ## Getting started
 
@@ -77,22 +98,58 @@ pip install slither-analyzer==0.10.4
 slither . --filter-paths "lib/|test/" --fail-medium
 ```
 
+## Tests
+
+[`test/StudentGrades.t.sol`](test/StudentGrades.t.sol) contains unit and fuzz tests for:
+
+- **Registration:** stored data, events, boundary scores (0 and 100) and name length limits
+- **Access control:** non-admins and students can't register or change scores; students can only read their own record
+- **Invalid input:** scores above 100, the zero address, and empty or too-long names
+- **Missing and duplicate records:** the right custom error, and existing data isn't overwritten
+- **Score updates:** only the score changes, and other students are unaffected
+- **Admin handover:** two-step flow, replacing the nominee, wrong caller and zero address
+- **Privacy:** one test reads raw storage to show that on-chain data is public whatever the access checks say
+
+Every revert test checks the exact custom error.
+
 ## Project layout
 
 ```
 src/StudentGrades.sol        contract
 test/StudentGrades.t.sol     Foundry tests (unit + fuzz)
 lib/forge-std                test library (submodule)
-.github/workflows/test.yml   CI
+.github/workflows/test.yml   CI (format, build, test, Slither)
+.github/ISSUE_TEMPLATE/      issue templates
+CONTRIBUTING.md              how to contribute
+SECURITY.md                  security model, privacy limits, reporting
 ```
 
 ## Deployment
 
-There is no deployment script yet; it is tracked as an open issue. If you deploy manually, use a local test network (`anvil`) or a testnet. Never pass a private key on the command line or commit one. Use `cast wallet import` and `--account` instead.
+There is no deployment script yet (see [Roadmap](#roadmap)). If you deploy manually, use a local test network (`anvil`) or a testnet. Never pass a private key on the command line or commit one. Use `cast wallet import` and `--account` instead.
+
+## Roadmap
+
+Planned work, open for contributors:
+
+- Remove a student, and cancel a pending admin transfer
+- Batch registration
+- Several graders (a teacher role) instead of a single admin
+- Store a hashed commitment instead of plain-text names (privacy)
+- A deployment script with keystore-based signing
+- Invariant tests, coverage reporting and gas snapshots in CI
+
+Each item will have its own GitHub issue with scope and acceptance criteria.
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md). Security reports go through [SECURITY.md](SECURITY.md), not public issues.
+Contributions are welcome, including through [Drips Wave](https://docs.drips.network/wave/).
+
+1. Pick an open issue and ask to be assigned before you start.
+2. Fork the repo, create a branch, and make sure `forge fmt --check`, `forge build` and `forge test` pass.
+3. Open a pull request that links the issue (`Closes #N`) and fill in the PR checklist.
+
+Read [CONTRIBUTING.md](CONTRIBUTING.md) for the full guidelines. Report security problems privately as described in [SECURITY.md](SECURITY.md), not in public issues.
 
 ## License
 
